@@ -68,6 +68,7 @@ services:
       - "8092"
     profiles:
       - demo
+      - load-test
     restart: unless-stopped
 
   mirror-service:
@@ -139,9 +140,6 @@ services:
   redpanda:
     image: docker.redpanda.com/vectorized/redpanda:v22.3.9
     container_name: dt-redpanda
-    profiles:
-      - demo
-      - dev
     command:
       - redpanda
       - start
@@ -192,8 +190,6 @@ services:
     volumes:
       - "./scripts/create-topics.sh:/tmp/create-topics.sh:ro"
     restart: on-failure
-    profiles:
-      - dev
 
   redpanda-console:
     image: docker.redpanda.com/vectorized/console:v2.1.1
@@ -205,10 +201,42 @@ services:
     ports:
       - "127.0.0.1:28080:8080"
     restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.41.0
+    container_name: dt-prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - "./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "prometheus-data:/prometheus"
     profiles:
-      - dev
+      - load-test
+      - monitoring
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana-oss:9.3.2
+    container_name: dt-grafana
+    depends_on:
+      - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: "admin"
+      GF_SECURITY_ADMIN_PASSWORD: "admin"
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - "grafana-data:/var/lib/grafana"
+      - "./monitoring/grafana/dashboards:/etc/dashboards:ro"
+      - "./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro"
+    profiles:
+      - load-test
+      - monitoring
+    restart: unless-stopped
 
 volumes:
   apiserver-data: {}
   postgres-data: {}
   redpanda-data: {}
+  grafana-data: {}
+  prometheus-data: {}
