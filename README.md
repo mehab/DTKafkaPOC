@@ -113,24 +113,25 @@ The console is exposed at `http://127.0.0.1:28080` and does not require authenti
 [Redpanda]: https://redpanda.com/
 [Snyk]: https://snyk.io/
 
-#### Deploying vulnerability-analyzer using minkube 
+#### Deploying vulnerability-analyzer using minikube 
+
 ##### Prerequisites
+
 * minikube installation on target machine
-* ```shell
-  minikube start
-    ```
-  ```
+```shell
+minikube start
+```
 * kubectl installation on target machine
 * helm installation on target machine
-* ```shell
-  docker-compose --profile demokube up
-  ```
+```shell
+docker-compose --profile dev up -d
+```
 
 ##### Deployment Steps
 
 * ```shell
   cd vulnerability-analyzer
-  mvn clean install
+  mvn clean install -Dquarkus.profile=minikube -DskipTests
   ```
 
 An example deployment.yaml is available in ``deploymentCharts/vulnerability-analyzer/deployment.yaml``.<br/>
@@ -138,21 +139,51 @@ This module now has quarkus-helm and quarkus-kubernetes extensions installed so 
 In addition a values.yaml will be created in ./target/helm/kubernetes/<chart-name>/values.yaml. Upon doing `mvn clean install` the values.yaml will contain these values:
 ```yaml
 ---
+---
 app:
   serviceType: ClusterIP
-  image: <local path to image>
-  envs:
-    KAFKA_BOOTSTRAP_SERVERS: test
-    SCANNER_SNYK_ENABLED: "true"
-    QUARKUS_DATASOURCE_USERNAME: test
-    SCANNER_OSSINDEX_ENABLED: "false"
-    QUARKUS_DATASOURCE_JDBC_URL: test
-    SCANNER_OSSINDEX_API_TOKEN: test
-    SCANNER_OSSINDEX_API_USERNAME: test
-    QUARKUS_DATASOURCE_PASSWORD: test
-    SCANNER_SNYK_API_ORG_ID: test
-    QUARKUS_KAFKA_STREAMS_BOOTSTRAP_SERVERS: test
-    SCANNER_SNYK_API_TOKENS: test
+  livenessProbe:
+    failureThreshold: 3
+    periodSeconds: 30
+    timeoutSeconds: 10
+    successThreshold: 1
+    initialDelaySeconds: 0
+    httpGet:
+      path: /q/health/live
+      scheme: HTTP
+      port: 8092
+  image: ghcr.io/mehab/vulnerability-analyzer:latest-native
+  database:
+    password: dtrack
+    jdbcUrl: jdbc:postgresql://host.minikube.internal:5432/dtrack
+    username: dtrack
+  replicas: 1
+  kafka:
+    numStreamThreads: "3"
+    bootstrapServers: host.minikube.internal:9093
+  scanner:
+    internal:
+      enabled: "true"
+    ossindex:
+      api:
+        token: ""
+        username: ""
+      enabled: "true"
+    snyk:
+      api:
+        tokens: ""
+        orgId: ""
+      enabled: "false"
+  readinessProbe:
+    failureThreshold: 3
+    timeoutSeconds: 10
+    periodSeconds: 30
+    successThreshold: 1
+    initialDelaySeconds: 0
+    httpGet:
+      path: /q/health/ready
+      scheme: HTTP
+      port: 8092
 ```
 These values can be updated as per requirement. The value populated by default are coming from the application.properties. For example:
 ```properties
